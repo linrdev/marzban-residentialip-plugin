@@ -1,0 +1,6 @@
+# Use with compose.yaml; remove the local SQLite identity mount entirely.
+# Requires Docker Compose >=2.24.4 for !override.
+services:
+  residential-addon:
+    volumes: !override
+      - resip-data:/data

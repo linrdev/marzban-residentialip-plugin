@@ -1,0 +1,13 @@
+Controller: {{ include "resip.name" . }}.{{ .Release.Namespace }}.svc:8787 (private).
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "resip.name" . }} 8787:8787
+
+Keep one instance and one Uvicorn worker. Recreate upgrades have downtime.
+/healthz is liveness; /readyz checks local state; /v1/status checks reconciliation.
+Manual apply is the default. Read deployment.md before enabling autoApply.
+Credentials come from existing Secret {{ .Values.existingSecret }}; restart after rotation.
+PVCs are retained on uninstall; set persistence.existingClaim when reinstalling.
+{{- if .Values.marzban.enabled }}
+Bundled Marzban:
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "resip.name" . }}-marzban 8000:8000
+Dashboard is private. Configure subscription host/port/path in Marzban for your TLS ingress.
+{{- end }}

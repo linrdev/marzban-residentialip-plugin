@@ -1,0 +1,5 @@
+{
+  "event_id": "order-1001-cancel-v1",
+  "action": "revoke",
+  "username": "alice"
+}

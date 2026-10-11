@@ -1,0 +1,299 @@
+{
+  "type": "object",
+  "properties": {
+    "replicaCount": {
+      "const": 1
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "IfNotPresent",
+            "Always",
+            "Never"
+          ]
+        }
+      },
+      "required": [
+        "repository",
+        "tag",
+        "digest",
+        "pullPolicy"
+      ],
+      "additionalProperties": false
+    },
+    "imagePullSecrets": {
+      "type": "array"
+    },
+    "existingSecret": {
+      "type": "string",
+      "minLength": 1
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "marzbanUrl": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "marzbanDbUrl": {
+          "type": "string",
+          "pattern": "^$|^sqlite:"
+        },
+        "allowHttpMarzban": {
+          "type": "boolean"
+        },
+        "autoApply": {
+          "type": "boolean"
+        },
+        "pollSeconds": {
+          "type": "integer",
+          "minimum": 15
+        },
+        "probeMaxAge": {
+          "type": "integer",
+          "minimum": 60
+        },
+        "probeUrl": {
+          "type": "string",
+          "pattern": "^https://"
+        }
+      },
+      "required": [
+        "marzbanUrl",
+        "marzbanDbUrl",
+        "allowHttpMarzban",
+        "autoApply",
+        "pollSeconds",
+        "probeMaxAge",
+        "probeUrl"
+      ],
+      "additionalProperties": false
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "existingClaim": {
+          "type": "string"
+        },
+        "storageClass": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": [
+            "ReadWriteOnce",
+            "ReadWriteOncePod"
+          ]
+        }
+      },
+      "required": [
+        "existingClaim",
+        "storageClass",
+        "size",
+        "accessMode"
+      ],
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "existingClaim": {
+          "type": "string"
+        },
+        "mountPath": {
+          "type": "string",
+          "pattern": "^/"
+        }
+      },
+      "required": [
+        "existingClaim",
+        "mountPath"
+      ],
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "additionalIngress": {
+          "type": "array"
+        },
+        "egress": {
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "additionalIngress"
+      ],
+      "additionalProperties": false
+    },
+    "marzban": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resources": {
+          "type": "object"
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "existingClaim": {
+              "type": "string"
+            },
+            "storageClass": {
+              "type": "string"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "existingClaim",
+            "storageClass",
+            "size"
+          ],
+          "additionalProperties": false
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "className": {
+              "type": "string"
+            },
+            "host": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tlsSecretName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "annotations": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "className",
+            "host",
+            "tlsSecretName",
+            "annotations"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "enabled",
+        "image",
+        "resources",
+        "persistence",
+        "ingress"
+      ],
+      "additionalProperties": false
+    },
+    "global": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "replicaCount",
+    "image",
+    "imagePullSecrets",
+    "existingSecret",
+    "config",
+    "persistence",
+    "identity",
+    "resources",
+    "nodeSelector",
+    "tolerations",
+    "affinity",
+    "podAnnotations",
+    "networkPolicy",
+    "marzban"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "marzban": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          },
+          "config": {
+            "properties": {
+              "allowHttpMarzban": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "config": {
+            "properties": {
+              "marzbanUrl": {
+                "pattern": "^https://"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

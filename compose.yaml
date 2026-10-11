@@ -1,6 +1,7 @@
 services:
   residential-addon:
     build: .
+    image: ${RESIP_IMAGE:-marzban-residentialip-plugin:0.2.0}
     restart: unless-stopped
     init: true
     ports:
@@ -13,7 +14,12 @@ services:
       - resip-data:/data
       # Default Marzban SQLite volume, mounted READ-ONLY for id.username lookup.
       # Remove for MySQL and set MARZBAN_DB_URL with a read-only SQL account.
-      - ${MARZBAN_DATA_DIR:-/var/lib/marzban}:/marzban-ro:ro
+      - type: bind
+        source: ${MARZBAN_DATA_DIR:-/var/lib/marzban}
+        target: /marzban-ro
+        read_only: true
+        bind:
+          create_host_path: false
     read_only: true
     tmpfs:
       - /tmp:noexec,nosuid,size=16m
@@ -21,6 +27,15 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8787/healthz',timeout=3)"]
       interval: 30s

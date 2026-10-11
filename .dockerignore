@@ -14,3 +14,13 @@ docs/
 scripts/
 README.md
 SECURITY.md
+.resip/
+.resip-admin.json
+compose.admin.yaml
+charts/
+deploy/
+*.zip
+*.sh
+deployment.md
+requirements-dev.txt
+requirements.md

@@ -1,0 +1,122 @@
+name: marzban-residential
+
+services:
+  storage-init:
+    build:
+      context: ..
+    image: ${RESIP_IMAGE:-marzban-residentialip-plugin:0.2.0}
+    user: "0:0"
+    command:
+      - python
+      - -c
+      - |
+        import os, pathlib, shutil
+        p = pathlib.Path('/marzban-data')
+        os.chown(p, 0, 10001)
+        p.chmod(0o2770)
+        dst = p / 'xray_config.json'
+        if not dst.exists():
+            shutil.copyfile('/seed/xray_config.json', dst)
+            os.chown(dst, 0, 10001)
+            dst.chmod(0o660)
+    volumes:
+      - marzban-data:/marzban-data
+      - ./xray_config.json:/seed/xray_config.json:ro
+    network_mode: none
+    restart: "no"
+
+  marzban:
+    image: ${MARZBAN_IMAGE:-gozargah/marzban:v0.8.4}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+    environment:
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: "8000"
+      SQLALCHEMY_DATABASE_URL: sqlite:////var/lib/marzban/db.sqlite3
+      XRAY_JSON: /var/lib/marzban/xray_config.json
+      SUDO_USERNAME: ${MARZBAN_SUDO_USER:?Set MARZBAN_SUDO_USER}
+      SUDO_PASSWORD: ${MARZBAN_SUDO_PASSWORD:?Set MARZBAN_SUDO_PASSWORD}
+      XRAY_SUBSCRIPTION_URL_PREFIX: https://${PANEL_DOMAIN:-panel.example.net}
+    group_add: ["10001"]
+    volumes:
+      - marzban-data:/var/lib/marzban
+    ports:
+      - "127.0.0.1:8000:8000"
+    expose: ["1080"]
+    networks: [management]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('127.0.0.1',8000,timeout=3); c.request('GET','/api/core'); assert c.getresponse().status in (200,401)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    logging: &logs
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  residential-addon:
+    build:
+      context: ..
+    image: ${RESIP_IMAGE:-marzban-residentialip-plugin:0.2.0}
+    restart: unless-stopped
+    init: true
+    env_file: ../.env
+    environment:
+      RESIP_DB: /data/resip.db
+      MARZBAN_URL: http://marzban:8000
+      # Explicit trust boundary: HTTP is confined to this host's Docker bridge.
+      RESIP_ALLOW_HTTP_MARZBAN: "true"
+      MARZBAN_DB_URL: sqlite:///file:/marzban-ro/db.sqlite3?mode=ro&uri=true
+    depends_on:
+      marzban:
+        condition: service_healthy
+    ports: ["127.0.0.1:8787:8787"]
+    volumes:
+      - resip-data:/data
+      - marzban-data:/marzban-ro:ro
+    read_only: true
+    tmpfs: ["/tmp:noexec,nosuid,size=16m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    stop_grace_period: 30s
+    networks: [management]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/readyz',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logs
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2.10.2-alpine}
+    profiles: [tls]
+    restart: unless-stopped
+    environment:
+      PANEL_DOMAIN: ${PANEL_DOMAIN:?Set PANEL_DOMAIN}
+      VPN_DOMAIN: ${VPN_DOMAIN:?Set VPN_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      marzban:
+        condition: service_healthy
+    networks: [management]
+    logging: *logs
+
+networks:
+  management:
+    driver: bridge
+volumes:
+  resip-data:
+  marzban-data:
+  caddy-data:
+  caddy-config:

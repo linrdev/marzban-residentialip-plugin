@@ -1,0 +1,62 @@
+replicaCount: 1
+image:
+  repository: marzban-residentialip-plugin
+  tag: "0.2.0"
+  digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+# Required: pre-created Secret containing admin/billing/Marzban/proxy credentials.
+# Secrets are never rendered by this chart or supplied through Helm values.
+existingSecret: resip-secrets
+config:
+  marzbanUrl: https://marzban.example.net
+  # Empty means MARZBAN_DB_URL must come from existingSecret.
+  marzbanDbUrl: ""
+  allowHttpMarzban: false
+  autoApply: false
+  pollSeconds: 60
+  probeMaxAge: 3600
+  probeUrl: https://api.ipify.org?format=json
+persistence:
+  existingClaim: ""
+  storageClass: ""
+  size: 2Gi
+  accessMode: ReadWriteOnce
+  # Prefer ReadWriteOncePod with a compatible CSI driver (Kubernetes >=1.29).
+identity:
+  # For an existing SQLite deployment in this namespace. MySQL is preferred
+  # for a separately hosted Marzban; do not copy a stale identity DB.
+  existingClaim: ""
+  mountPath: /marzban-ro
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: "1", memory: 512Mi}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+networkPolicy:
+  enabled: true
+  # Same-namespace callers must have label resip-access=true.
+  # Add explicit cross-namespace namespaceSelector/podSelector peers here.
+  additionalIngress: []
+  # Egress is allowed: the controller needs Marzban API/SQL, DNS and SOCKS.
+  # Supply reviewed rules to restrict egress; null omits egress isolation.
+  egress: null
+marzban:
+  enabled: false
+  image: gozargah/marzban:v0.8.4
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+  persistence:
+    existingClaim: ""
+    storageClass: ""
+    size: 8Gi
+  # TLS ingress publishes only VLESS /vless-ws, never controller or dashboard.
+  ingress:
+    enabled: false
+    className: ""
+    host: vpn.example.net
+    tlsSecretName: vpn-tls
+    annotations: {}

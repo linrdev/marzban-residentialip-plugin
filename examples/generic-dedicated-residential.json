@@ -1,0 +1,12 @@
+{
+  "id": "resi_us_01",
+  "provider": "custom_dedicated_residential",
+  "host": "YOUR_PRIVATE_TUNNEL_GATEWAY_HOST",
+  "port": 1080,
+  "username_env": "PROXY_ONE_USERNAME",
+  "password_env": "PROXY_ONE_PASSWORD",
+  "expected_ip": "203.0.113.22",
+  "country": "US",
+  "supply_class": "dedicated_residential",
+  "exclusive": true
+}

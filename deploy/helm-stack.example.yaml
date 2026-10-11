@@ -1,0 +1,25 @@
+residential-egress:
+  image:
+    repository: registry.example.net/linrdev/marzban-residentialip-plugin
+    tag: "0.2.0"
+  existingSecret: resip-secrets
+  marzban:
+    enabled: true
+    ingress:
+      enabled: true
+      className: nginx
+      host: vpn.example.net
+      tlsSecretName: vpn-tls
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  networkPolicy:
+    additionalIngress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: ingress-nginx
+        ports:
+          - {protocol: TCP, port: 1080}

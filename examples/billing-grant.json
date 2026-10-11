@@ -1,0 +1,6 @@
+{
+  "event_id": "order-1001-private-ip-v1",
+  "action": "grant",
+  "username": "alice",
+  "paid_until": 1893456000
+}

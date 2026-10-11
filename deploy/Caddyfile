@@ -1,0 +1,19 @@
+{
+    email {$ACME_EMAIL}
+    # VPN transport is WebSocket/TCP; premium UDP is not supported.
+    servers {
+        protocols h1 h2
+    }
+}
+
+{$PANEL_DOMAIN} {
+    reverse_proxy marzban:8000
+}
+
+{$VPN_DOMAIN} {
+    @vpn path /vless-ws
+    reverse_proxy @vpn marzban:1080
+    respond 404
+}
+
+# The controller :8787 is deliberately absent from the public reverse proxy.

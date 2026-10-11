@@ -1,0 +1,12 @@
+{{- if .Values.marzban.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "resip.name" . }}-xray
+  labels:
+    {{- include "resip.labels" . | nindent 4 }}
+data:
+  # Seed only; core PUT needs a writable file, never a ConfigMap mount.
+  xray_config.json: |
+    {{- .Files.Get "files/xray_config.json" | nindent 4 }}
+{{- end }}

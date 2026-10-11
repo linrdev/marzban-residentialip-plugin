@@ -1,0 +1,11 @@
+apiVersion: v2
+name: marzban-residential-stack
+description: Marzban and residential controller in one pod with shared live SQLite identity
+type: application
+version: 0.2.0
+appVersion: "0.2.0"
+kubeVersion: ">=1.27.0-0"
+dependencies:
+  - name: residential-egress
+    version: 0.2.0
+    repository: file://../residential-egress

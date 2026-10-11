@@ -1,0 +1,11 @@
+image:
+  repository: registry.example.net/linrdev/marzban-residentialip-plugin
+  tag: "0.2.0"
+existingSecret: resip-secrets
+config:
+  marzbanUrl: https://marzban.example.net
+# Secret must contain MARZBAN_DB_URL for the same live Marzban database.
+# For a local SQLite claim, also set identity.existingClaim and a read-only URI.
+persistence:
+  size: 2Gi
+  accessMode: ReadWriteOnce

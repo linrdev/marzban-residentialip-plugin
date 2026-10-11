@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "resip.name" . }}
+  labels:
+    {{- include "resip.labels" . | nindent 4 }}
+data:
+  RESIP_DB: /data/resip.db
+  MARZBAN_URL: {{ ternary "http://127.0.0.1:8000" .Values.config.marzbanUrl .Values.marzban.enabled | quote }}
+  {{- if .Values.marzban.enabled }}
+  MARZBAN_DB_URL: "sqlite:///file:/marzban-ro/db.sqlite3?mode=ro&uri=true"
+  {{- else if .Values.config.marzbanDbUrl }}
+  MARZBAN_DB_URL: {{ .Values.config.marzbanDbUrl | quote }}
+  {{- end }}
+  RESIP_ALLOW_HTTP_MARZBAN: {{ ternary "true" "false" (or .Values.marzban.enabled .Values.config.allowHttpMarzban) | quote }}
+  RESIP_AUTO_APPLY: {{ .Values.config.autoApply | quote }}
+  RESIP_POLL_SECONDS: {{ .Values.config.pollSeconds | quote }}
+  RESIP_PROBE_MAX_AGE: {{ .Values.config.probeMaxAge | quote }}
+  RESIP_PROBE_URL: {{ .Values.config.probeUrl | quote }}

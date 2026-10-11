@@ -1,0 +1,12 @@
+{
+  "id": "de01",
+  "provider": "oxylabs_dedicated_isp",
+  "host": "disp.oxylabs.io",
+  "port": 8001,
+  "username_env": "PROXY_ONE_USERNAME",
+  "password_env": "PROXY_ONE_PASSWORD",
+  "expected_ip": "203.0.113.10",
+  "country": "DE",
+  "supply_class": "dedicated_isp",
+  "exclusive": true
+}

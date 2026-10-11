@@ -1,7 +1,17 @@
 .env
+.env.*
+!.env.example
+!**/.env.example
 *.db
 *.sqlite*
 __pycache__/
 .pytest_cache/
 .venv/
 *.pyc
+backups/
+charts/**/charts/*.tgz
+charts/**/Chart.lock
+dist/
+.resip/
+.resip-admin.json
+compose.admin.yaml

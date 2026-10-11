@@ -1,0 +1,183 @@
+{{- if and .Values.marzban.enabled .Values.identity.existingClaim }}
+{{- fail "identity.existingClaim cannot be used with the bundled Marzban" }}
+{{- end }}
+{{- if and .Values.marzban.ingress.enabled (not .Values.marzban.enabled) }}
+{{- fail "marzban.ingress requires marzban.enabled=true" }}
+{{- end }}
+{{- if and .Values.marzban.ingress.enabled .Values.networkPolicy.enabled (empty .Values.networkPolicy.additionalIngress) }}
+{{- fail "Set networkPolicy.additionalIngress to allow the TLS ingress controller on port 1080" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "resip.name" . }}
+  labels:
+    {{- include "resip.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "resip.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "resip.selector" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.marzban.enabled }}
+      initContainers:
+        - name: seed-marzban
+          image: {{ include "resip.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [python, -c]
+          args:
+            - |
+              import pathlib, shutil
+              p = pathlib.Path('/marzban-data')
+              dst = p / 'xray_config.json'
+              if not dst.exists():
+                  shutil.copyfile('/seed/xray_config.json', dst)
+                  dst.chmod(0o660)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 250m, memory: 128Mi}
+          volumeMounts:
+            - {name: marzban-data, mountPath: /marzban-data}
+            - {name: xray-seed, mountPath: /seed, readOnly: true}
+      {{- end }}
+      containers:
+        - name: residential-addon
+          image: {{ include "resip.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - {name: http, containerPort: 8787}
+          envFrom:
+            - secretRef:
+                name: {{ required "existingSecret is required" .Values.existingSecret | quote }}
+            - configMapRef:
+                name: {{ include "resip.name" . }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+            {{- if .Values.marzban.enabled }}
+            - {name: marzban-data, mountPath: /marzban-ro, readOnly: true}
+            {{- else if .Values.identity.existingClaim }}
+            - name: identity
+              mountPath: {{ .Values.identity.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+        {{- if .Values.marzban.enabled }}
+        - name: marzban
+          image: {{ .Values.marzban.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: panel, containerPort: 8000}
+            - {name: vless, containerPort: 1080}
+          env:
+            - {name: UVICORN_HOST, value: "0.0.0.0"}
+            - {name: UVICORN_PORT, value: "8000"}
+            - {name: SQLALCHEMY_DATABASE_URL, value: "sqlite:////var/lib/marzban/db.sqlite3"}
+            - {name: XRAY_JSON, value: "/var/lib/marzban/xray_config.json"}
+            - name: SUDO_USERNAME
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.existingSecret | quote }}, key: MARZBAN_SUDO_USER}
+            - name: SUDO_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.existingSecret | quote }}, key: MARZBAN_SUDO_PASSWORD}
+          # Upstream image runs as root; controller and init remain non-root.
+          # A restricted Pod Security namespace rejects this optional container.
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          startupProbe:
+            tcpSocket: {port: panel}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket: {port: panel}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: panel}
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.marzban.resources | nindent 12 }}
+          volumeMounts:
+            - {name: marzban-data, mountPath: /var/lib/marzban}
+        {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "resip.claim" . }}
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 16Mi}
+        {{- if .Values.marzban.enabled }}
+        - name: marzban-data
+          persistentVolumeClaim:
+            claimName: {{ include "resip.marzbanClaim" . }}
+        - name: xray-seed
+          configMap:
+            name: {{ include "resip.name" . }}-xray
+        {{- else if .Values.identity.existingClaim }}
+        - name: identity
+          persistentVolumeClaim:
+            claimName: {{ .Values.identity.existingClaim | quote }}
+            readOnly: true
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

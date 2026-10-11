@@ -1,0 +1,29 @@
+{{- if and .Values.marzban.enabled .Values.marzban.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "resip.name" . }}-vpn
+  labels:
+    {{- include "resip.labels" . | nindent 4 }}
+  {{- with .Values.marzban.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.marzban.ingress.className }}
+  ingressClassName: {{ .Values.marzban.ingress.className | quote }}
+  {{- end }}
+  tls:
+    - hosts: [{{ .Values.marzban.ingress.host | quote }}]
+      secretName: {{ .Values.marzban.ingress.tlsSecretName | quote }}
+  rules:
+    - host: {{ .Values.marzban.ingress.host | quote }}
+      http:
+        paths:
+          - path: /vless-ws
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "resip.name" . }}-marzban
+                port: {name: vless}
+{{- end }}

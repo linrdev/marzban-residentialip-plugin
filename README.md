@@ -1,8 +1,10 @@
-# Marzban Residential Egress Add-on — MVP v0.1
+# Marzban Residential Egress Add-on — MVP v0.2
 
 **An independent, single-node control-plane for assigning verified, exclusive residential/ISP SOCKS5 exits to paid Marzban users.** Does not fork Marzban, change subscriber credentials, or install another VPN on subscriber devices.
 
-**Status:** Runnable reference MVP with mocked Marzban and upstream tests. **NOT production-certified**; no real provider credentials, live Marzban nodes or Xray binary were available for integration testing. See `SECURITY.md` and the rollout checklist before selling this feature.
+**Deploy:** [Deployment guide](deployment.md) · [Existing-host Compose](compose.yaml) · [Full-stack Compose](deploy/compose.stack.yaml) · [Controller Helm chart](charts/residential-egress) · [Stack Helm chart](charts/marzban-residential-stack)
+
+**Status:** Runnable reference MVP with mocked Marzban and upstream tests. **NOT production-certified**; no real provider credentials, live Marzban nodes or Xray binary were available for integration testing. See [deployment.md](deployment.md), `SECURITY.md` and the rollout checklist before selling this feature.
 
 ## Upstream projects and acknowledgements
 
@@ -17,33 +19,45 @@ Provider-specific topology examples reference publicly documented endpoints from
 
 **Attribution is not endorsement.** No partnership or official affiliation with Marzban, Gozargah, XTLS, or any residential provider is claimed. Third-party code and packages remain under their respective licenses; the original add-on code is distributed under [MIT](LICENSE). If you build on these foundations, please retain relevant upstream notices and acknowledge upstream maintainers.
 
-## GitHub publishing / upstream fork
+## Repository and upstream
 
-This repository is intended to live at **[`linrdev/marzban-residentialip-plugin`](https://github.com/linrdev/marzban-residentialip-plugin)**. The matching Marzban fork should be created using GitHub's **Fork** function for [the original `Gozargah/Marzban`](https://github.com/Gozargah/Marzban), to preserve GitHub's fork relationship and attribution. **Do not** push an unrelated copied tree as if it were a fork.
-
-Once GitHub CLI is installed and authenticated as `linrdev`, run `bash scripts/publish-github.sh` from a clean Git checkout. It creates the public add-on repository (or safely pushes to an existing empty repository) and forks the current upstream `Gozargah/Marzban` into `linrdev/Marzban` if no fork already exists. It refuses to overwrite a nonempty or conflicting destination. The script requires network access and suitable GitHub repository-create/fork permissions.
+Source and deployment recipes: **[linrdev/marzban-residentialip-plugin](https://github.com/linrdev/marzban-residentialip-plugin)**.
+The add-on remains independent of [upstream Marzban](https://github.com/Gozargah/Marzban).
+Use GitHub's Fork function when maintaining a Marzban fork, preserving attribution
+and its upstream relationship. The legacy initial-publishing helper refuses to
+overwrite nonempty repositories; routine updates should use normal Git commits.
 
 ## Architecture
 
-```text
-Stripe/CoinPayments → your billing backend (validates actual payment)
-                                  │ signed HMAC entitlement event
-                                  ▼
-   Residential add-on :8787 ── SQLite (one active instance)
-      ├── Provider-independent SOCKS5 exit inventory
-      ├── Provider gateway examples + optional IPRoyal v1 discovery API
-      ├── Probe actual IP / reserve once / renew / revoke
-      ├── Marzban REST: token, GET user, GET+PUT core config
-      └── Marzban SQL: read-only SELECT users.id by username
-                                         │ Xray core restart
-                                         ▼
-Marzban subscriber → Xray authenticated user email → per-user routing
-       ├── Standard account → pre-existing routing untouched
-       └── Paid active → dedicated SOCKS5 upstream → expected public IP
-                          (UDP explicitly blackholed in MVP)
+```mermaid
+flowchart TD
+    B[Verified billing backend] -->|Signed entitlement| A[Residential controller]
+    A --> S[Lease SQLite]
+    A -->|Identity read only| D[Marzban SQL]
+    A -->|Core config API| M[Marzban]
+    M --> X[Xray nodes]
+    U[Subscriber] --> X
+    X -->|Paid TCP| P[Dedicated SOCKS5 exit]
+    X -->|Standard account| R[Existing routing]
 ```
 
+
+
 **Semantics:** paid `+ private residential IP` is *not* a rotating or time-limited sticky session. Register only dedicated, exclusive IP/port mappings under a valid resale license, and independently test expected egress IP. An ISP-assigned proxy is not automatically a real household connection. Advertise the accurate address class.
+
+## Linux admin quick start
+
+```bash
+bash wizard.sh                 # 8 configuration presets; writes private settings
+bash installer.sh              # Also available as intaller.sh
+bash updater.sh --check         # Default: check only
+bash updater.sh --apply --yes    # Snapshot + deliberate upgrade
+bash remove.sh --help           # Removal, full purge, and snapshot restore options
+```
+
+See the [Linux admin manual](docs/linux-admin.md) for preset choices, cron
+examples, private snapshots, full removal, and rollback. The scripts manage
+Compose on Linux; [deployment.md](deployment.md) covers both Compose and Helm.
 
 ## Host prerequisites
 
@@ -114,6 +128,7 @@ OpenAPI: `http://127.0.0.1:8787/docs` (private admin access only).
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/healthz` | Process liveness |
+| GET | `/readyz` | Local state DB readiness; use `/v1/status` for reconciliation health |
 | POST | `/v1/exits` | Register manually attested fixed SOCKS5 exit, env variable references for secrets |
 | GET | `/v1/exits` | IP inventory and allocation state, no passwords |
 | POST | `/v1/exits/{id}/verify` | Probe exit through SOCKS5 and check actual exact public IP |
@@ -151,6 +166,8 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements-dev.txt
 pytest -q
+# With Helm and Compose v2 installed:
+python scripts/validate_infra.py
 ```
 
 Tests run entirely offline with fake Marzban and proxy probe; a real end-to-end lab gate is required. A signed event example is in `scripts/send_event.py`.
